@@ -98,7 +98,7 @@ async fn redirect_to_url(
     match row {
         Ok(Some(url)) => {
             println!("{}", url);
-            return Redirect::temporary(&url).into_response();
+            return Redirect::permanent(&url).into_response();
         }
         Ok(None) => (StatusCode::NOT_FOUND, "404 Not Found").into_response(),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, format!("Error: {}", err)).into_response(),

@@ -1,12 +1,14 @@
 use axum::{
     body::Body,
     extract::{Path, State},
-    http::{HeaderMap, Request, StatusCode},
+    http::{Request, StatusCode},
     middleware::Next,
     response::{IntoResponse, Redirect, Response},
+    routing::get_service,
     routing::{get, post},
     Json, Router,
 };
+use tower_http::services::ServeDir;
 
 use dotenvy::dotenv;
 use rand::{distr::Alphanumeric, Rng};
@@ -18,7 +20,6 @@ use std::net::SocketAddr;
 #[derive(Clone)]
 struct AppState {
     db: Pool<Sqlite>,
-    auth_token: String,
     domain: String,
 }
 
@@ -27,7 +28,7 @@ async fn main() {
     dotenv().ok();
     // initialize tracing
     tracing_subscriber::fmt::init();
-
+    let static_dir = "./public";
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL not set");
     println!("{}", database_url);
 
@@ -62,19 +63,14 @@ async fn main() {
     .execute(&db)
     .await
     .unwrap();
-    let auth_token: String = env::var("AUTH_TOKEN").expect("AUTH_TOKEN not set");
 
     let domain: String = env::var("DOMAIN").expect("DOMAIN not set");
 
-    let state = AppState {
-        db,
-        auth_token,
-        domain,
-    };
+    let state = AppState { db, domain };
 
     let app = Router::new()
-        .route("/{key}", get(redirect_to_url))
-        .route("/", get(root))
+        .route("/", get_service(ServeDir::new(static_dir)))
+        .route("/r/{key}", get(redirect_to_url))
         .route("/", post(create_link))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -82,15 +78,11 @@ async fn main() {
         ))
         .with_state(state);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 7700));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 7700));
     println!("🚀 Server running on http://{}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
-}
-
-async fn root() -> &'static str {
-    "I'm sndra.link"
 }
 
 async fn redirect_to_url(
@@ -118,21 +110,6 @@ async fn verify_auth(
     request: Request<Body>,
     next: Next,
 ) -> Response {
-    if request.method() == "POST" && request.uri().path() == "/" {
-        let headers: &HeaderMap = request.headers();
-        if let Some(auth_header) = headers.get("Authorization") {
-            if let Ok(token_str) = auth_header.to_str() {
-                if token_str == format!("Bearer {}", state.auth_token) {
-                    return next.run(request).await;
-                }
-            }
-        }
-        return (
-            StatusCode::UNAUTHORIZED,
-            "Invalid or missing Authorization token",
-        )
-            .into_response();
-    }
     next.run(request).await
 }
 
@@ -142,7 +119,7 @@ async fn create_link(
 ) -> impl IntoResponse {
     let key = generate_key();
     let domain = &state.domain;
-    let short_url = format!("{}/{}", domain, key);
+    let short_url = format!("{}/r/{}", domain, key);
 
     if !is_valid_url(&payload.link) {
         return (
@@ -151,25 +128,25 @@ async fn create_link(
         );
     }
 
-    match sqlx::query!(
-        "INSERT INTO short_links (id, original_url) VALUES (?, ?)",
-        key,
-        payload.link
+    sqlx::query("INSERT INTO short_links (id, original_url) VALUES (?, ?)")
+        .bind(&key)
+        .bind(&payload.link)
+        .execute(&state.db)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({ "error": e.to_string() })),
+            )
+        })
+        .unwrap();
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "short": short_url,
+        })),
     )
-    .execute(&state.db)
-    .await
-    {
-        Ok(_) => (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "short": short_url,
-            })),
-        ),
-        Err(e) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": e.to_string() })),
-        ),
-    }
 }
 
 fn is_valid_url(url: &str) -> bool {

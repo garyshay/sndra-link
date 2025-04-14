@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNDRA.LINK</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="bg-white p-6 sm:p-8 rounded-lg shadow-lg w-full max-w-lg">
+        <h1 class="text-2xl font-bold mb-6 text-center">Campaign URL Builder</h1>
+        <form id="myForm" class="space-y-4">
+            <div>
+                <label for="website" class="block text-sm font-medium text-gray-700">Website URL</label>
+                <input type="text" id="website" name="website"
+                    class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                    placeholder="The full website URL ">
+            </div>
+            <div>
+                <label for="campagin" class="block text-sm font-medium text-gray-700">Campagin name</label>
+                <input type="text" id="campagin" name="campagin"
+                    class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                    placeholder="Which campagin drove the traffic?">
+            </div>
+
+            <div>
+                <label for="source" class="block text-sm font-medium text-gray-700">Source</label>
+                <input type="text" id="source" name="source"
+                    class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm "
+                    placeholder="Which group, post, video, or account drove the traffic?                    ">
+            </div>
+            <div>
+                <label for="medium" class="block text-sm font-medium text-gray-700">Medium</label>
+                <input type="text" id="medium" name="medium"
+                    class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                    placeholder="Which medium hosts the group, post, video, or account?                    ">
+            </div>
+            <div>
+                <label for="content" class="block text-sm font-medium text-gray-700">Content</label>
+                <input type="text" id="content" name="content"
+                    class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                    placeholder="Unique identifier for ads or links in the same source">
+            </div>
+
+            <div>
+                <label for="term" class="block text-sm font-medium text-gray-700">Term</label>
+                <input type="text" id="term" name="term"
+                    class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
+                    placeholder="Unique identifier for tracking sales revenue                    ">
+            </div>
+
+            <!-- <button type="submit"
+                class="w-full bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition">Generate</button>
+
+                 -->
+
+            <div class="flex space-x-4">
+                <button type="submit"
+                    class="flex-1 bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700 transition">Generate</button>
+                <button type="button" id="shortenlink"
+                    class="flex-1 bg-gray-600 text-white p-2 rounded-md hover:bg-gray-700 transition">Shorten
+                    Link</button>
+            </div>
+
+
+        </form>
+        <div id="result" class="break-all mt-4 w-full text-sm text-gray-600"></div>
+        <div id="result2" class="break-all mt-4 w-full text-sm text-gray-600"></div>
+    </div>
+
+    <script>
+
+        function generateUTMUrl(baseUrl, utmParams) {
+            if (!baseUrl) {
+                throw new Error("Invalid Website URL");
+            }
+
+            const url = new URL(baseUrl);
+
+            for (let key in utmParams) {
+                if (utmParams[key]) {
+                    url.searchParams.set(`utm_${key}`, utmParams[key]);
+                }
+            }
+
+            return url.toString();
+        }
+        document.getElementById('myForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const website = document.getElementById('website').value;
+            const campagin = document.getElementById('campagin').value;
+            const source = document.getElementById('source').value;
+            const medium = document.getElementById('medium').value;
+            const content = document.getElementById('content').value;
+            const term = document.getElementById('term').value;
+
+            console.log({ campagin, source, medium, content, term })
+            const resultDiv = document.getElementById('result');
+
+            try {
+                resultDiv.textContent = generateUTMUrl(website, { campagin, source, medium, content, term })
+                resultDiv.classList.add('text-green-600');
+            } catch (error) {
+
+                resultDiv.textContent = ` ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+
+        document.getElementById('shortenlink').addEventListener('click', async (e) => {
+            e.preventDefault();
+            const website = document.getElementById('website').value;
+            const campagin = document.getElementById('campagin').value;
+            const source = document.getElementById('source').value;
+            const medium = document.getElementById('medium').value;
+            const content = document.getElementById('content').value;
+            const term = document.getElementById('term').value;
+
+            console.log({ campagin, source, medium, content, term })
+            const resultDiv = document.getElementById('result');
+
+            try {
+                resultDiv.textContent = generateUTMUrl(website, { campagin, source, medium, content, term })
+                resultDiv.classList.add('text-green-600');
+            } catch (error) {
+
+                resultDiv.textContent = ` ${error.message}`;
+                resultDiv.classList.add('text-red-600');
+                return
+            }
+
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ link: resultDiv.textContent })
+                });
+                const data = await response.json();
+                resultDiv.textContent = `Short URL: ${data.short}`;
+                resultDiv.classList.add('text-green-600');
+            } catch (error) {
+                resultDiv.textContent = `Failed：${error.message}`;
+                resultDiv.classList.add('text-red-600');
+            }
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  sndra-link-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      container_name: sndra-link-service
+    environment:
+      - DATABASE_URL=sqlite:///data/sndra-link.db
+      - DOMAIN=https://sndra.link
+    ports:
+    - "7700:7700"
+    volumes:
+    - ./data:/data
+    restart: unless-stopped
